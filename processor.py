@@ -1,12 +1,12 @@
 """
 processor.py: Data processing component.
 """ 
+from __future__ import annotations
+import re
 from typing import Dict, List, Tuple
-import os
-from datetime import datetime
-import traceback
 
 import pandas as pd
+import numpy as np
 
 from config import CONFIG
 from app_logger import setup_logger
@@ -14,163 +14,164 @@ from app_logger import setup_logger
 logger = setup_logger(__name__)
 
 class DataProcessor:
-    def __init__(self):
-        self.standard_columns = [
-            'order_date', 'order_number', 'products', 
-            'volume', 'ex_ref_price', 'brv_number', 'bdc', 'depot'
-                ]
-        self.table_mapping = {
-            'APPROVED': 'approved',
-            'BDC CANCEL ORDER': 'bdc_cancel_order',
-            'BDC DECLINE': 'bdc_decline',
-            'BRV CHECKED': 'brv_checked',
-            'DEPOT MANAGER': 'depot_manager',
-            'DEPOT MANAGER DECLINE': 'depot_manager_decline',
-            'GOOD STANDING': 'good_standing',
-            'LOADED': 'loaded',
-            'ORDER RELEASED': 'order_released',
-            'ORDERED': 'ordered',
-            'PPMC CANCEL ORDER': 'ppmc_cancel_order',
-            'MARKED': 'marked'
-                }
-        self.required_columns = ['order_date', 'order_number']
-        self.depot = CONFIG.depot
+    SECTION_TO_STATUS: Dict[str, str] = {
+        'APPROVED': 'approved',
+        'BDC CANCEL ORDER': 'bdc_cancel_order',
+        'BDC DECLINE': 'bdc_decline',
+        'BRV CHECKED': 'brv_checked',
+        'DEPOT MANAGER': 'depot_manager',
+        'DEPOT MANAGER DECLINE': 'depot_manager_decline',
+        'GOOD STANDING': 'good_standing',
+        'LOADED': 'loaded',
+        'ORDER RELEASED': 'order_released',
+        'ORDERED': 'ordered',
+        'PPMC CANCEL ORDER': 'ppmc_cancel_order',
+        'MARKED': 'marked',
+    }
 
-    def process(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-        """
-        process raw csv and split into tables
-        """
-        try:
-            table_data = self.split_dataframe_by_sections(df)
-            validated_data = {}
-            for table_name, section_df in table_data.items():
-                standardized_df = self._standardize_section_columns(section_df)
-                if standardized_df.empty:
-                    continue
-                if not standardized_df.empty and 'depot' in standardized_df.columns:
-                    mask = standardized_df['depot'].astype(str).str.contains(f'{self.depot}', case=False, na=False, regex=True)
-                    filtered_df = standardized_df[mask].copy()
-                    filtered_df = filtered_df.dropna(how='all')
-                    # drop rows with more than two empty cells
-                    filtered_df = filtered_df[filtered_df.isnull().sum(axis=1) <= 2]
-                else:
-                    filtered_df = standardized_df
-                if filtered_df.empty:
-                    logger.info(f"{table_name} become empty after filtering")
-                    continue
+    COLUMN_POSITIONS: Dict[str, int] = {
+        'order_date': 0,
+        'order_number': 2,
+        'product': 5,   
+        'volume': 9,
+        'ex_ref_price': 10,
+        'brv_number': 12,
+        'bdc': 15,
+        'depot': 20,        
+    }    
 
-                if self._validate_section(table_name, filtered_df):
-                    validated_data[table_name] = filtered_df
-                else:
-                   logger.warning(f"Skipping invalid section: {table_name}")
-            return validated_data
-        except Exception as e:
-            logger.error(f"Error processing data: str{e}")
-            logger.error(traceback.format_exc())
+    NOISE_LABELS = {
+        'order number', 'order date', 'daily order report', 'trans date',
+        'total#', 'page', 'persol systems'
+    }
 
-    def find_section_boundaries(self, df: pd.DataFrame) -> Dict[str, Tuple[int, int]]:
-        boundaries = {}
-        section_starts = {}
-        last_col = df.columns[-1]
-        for idx, row in df.iterrows():
-            section_value = str(row[last_col]).strip().upper()
-            first_col_value = str(row[df.columns[0]]).strip().upper()
-            # count non-empty values in the row
-            non_empty_count = sum(1 for val in row if str(val).strip() not in ['', 'nan', 'NAN'])
-            section_candidate = None
-            if section_value and section_value != 'NAN' and non_empty_count <= 2:
-                section_candidate = section_value
-            elif non_empty_count <= 2 and first_col_value and first_col_value != 'NAN':
-                section_candidate = first_col_value
-            if section_candidate:
-                sorted_patterns = sorted(self.table_mapping.items(), key=lambda x: len(x[0]), reverse=True)
-                matched = False
-                for pattern, table_name in sorted_patterns:
-                    if pattern.upper() == section_candidate:
-                        # don't override with later occurrence
-                        if table_name not in section_starts:
-                            section_starts[table_name] = idx
-                        matched = True
-                        break
-                if not matched:
-                    for pattern, table_name in sorted_patterns:
-                        if pattern.upper() in section_candidate or section_candidate in pattern.upper():
-                            if table_name not in section_starts:
-                                section_starts[table_name] = idx
-                            break
+    def __init__(self, depot: Optional[str] = None, max_nulls: int = 2):
+        self.depot = depot if depot is not None else getattr(CONFIG, 'depot', '')
+        self.max_nulls = max_nulls
+        self.standard_columns = list(self.COLUMN_POSITIONS.keys())
 
+#--------------------------------------------------------------------------API
 
-        if not section_starts:
-                logger.warning("No sections found, treating entire dataset as 'ordered'")
-                section_starts['ordered'] = df.index[0]
+    def process(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            logger.warning("Processor received an empty DataFrame")
+            return self._empty()
+        df = df.reset_index(drop=True)
+        df = df.replace(r"^\s*$", np.nan, regex=True)
+        sections = self.split_dataframe_by_sections(df)
+        frames = []
+        for status, section_df in sections.items():
+            std = self._standardize_section_columns(section_df)
+            std = self._clean_rows(std)
 
-        sorted_sections = sorted(section_starts.items(), key=lambda x: x[1])
-        for i, (section_name, start_idx) in enumerate(sorted_sections):
-            data_start = start_idx + 1
-            if i < len(sorted_sections) - 1:
-                next_section_header = sorted_sections[i + 1][1]
-                data_end = next_section_header - 1
-            else:
-                  data_end = df.index[-1]
-            if data_start <= data_end:
-                 boundaries[section_name] = (data_start, data_end)
-              
-        return boundaries
+            if std.empty:
+                logger.info("Secrtion '%s': 0 usable rows after cleaning", status)
+                continue
+            std['status'] = status
+            frames.append(std)
+
+        if not frames:
+                logger.error("No usable row found in any section. Check Excel layout")
+                return self._empty()
+
+        master = pd.concat(frames, ignore_index=True)
+        master = self._filter_depot(master)
+        master = self._coerce_types(master)
+        master = self._apply_null_rule(master)
+
+        logger.info("Successfully processed %d total orders across %d statuses",
+                len(master), master['status'].nunique())
+        return master
+
+    def find_section_boundaries(self, df: pd.DataFrame) -> list[Tuple[int, str]]:
+        first_col = df.iloc[:, 0].astype('string').str.strip().str.upper().fillna('')
+        non_empty_counts = df.notna().sum(axis=1).to_numpy()
+
+        patterns = sorted(self.SECTION_TO_STATUS.keys(), key=len, reverse=True)
+        headers: List[Tuple[int, str]] = []
+
+        for pos in np.flatnonzero(non_empty_counts <=2):
+            label = first_col.iat[pos]
+            if not label or len(label) > 60:
+                continue
+
+            # Exact match first
+            if label in self.SECTION_TO_STATUS:
+                headers.append((int(pos), self.SECTION_TO_STATUS[label]))
+                continue 
+            # Fallback
+            for p in patterns:
+                if len(p) >= 4 and re.search(rf'\b{re.escape(p)}\b', label):
+                    headers.append((int(pos), self.SECTION_TO_STATUS[p]))
+                    break
+        return headers
 
     def split_dataframe_by_sections(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-        boundaries = self.find_section_boundaries(df)
+        headers = self.find_section_boundaries(df)
+        if not headers:
+            logger.warning("No section headers found. Treating entire sheet as 'ordered'.")
+            return {'ordered': df}
+        
+        buckets: Dict[str, List[pd.DataFrame]] = {}
+        for i, (pos, status) in enumerate(headers):
+            start = pos + 1
+            end = headers[i + 1][0] - 1 if i + 1 < len(headers) else len(df) - 1
 
-        section_dataframes = {}
-        for section_name, (start_idx, end_idx) in boundaries.items():
-            try:
-                section_df = df.loc[start_idx:end_idx].copy()
-                if not section_df.empty:
-                    section_dataframes[section_name] = section_df
-            except Exception as e:
-                logger.error(e)
-                continue
-        return section_dataframes
+            if start <= end:
+                chunk = df.iloc[start:end + 1]
+                if not chunk.empty:
+                    buckets.setdefault(status, []).append(chunk)
+        return {s: pd.concat(v, ignore_index=True) for s, v in buckets.items()}
+
+    #--------------------------------------------------------------- Cleaning
 
     def _standardize_section_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """ Standardize column names and structure for a section """
-        try:
-            column_mapping = {
-                'Unnamed: 0': 'order_date',
-                'Unnamed: 2': 'order_number',
-                'Unnamed: 5': 'products',
-                'Unnamed: 9': 'volume',
-                'Unnamed: 10': 'ex_ref_price',
-                'Unnamed: 12': 'brv_number',
-                'Unnamed: 15': 'bdc',
-                'Unnamed: 20': 'depot'
-            }
-            if 'order_date' in df.columns:
-                available_columns = [col for col in self.standard_columns if col in df.columns]
-                df = df[available_columns].copy()
-            else:
-                available_columns = [col for col in column_mapping.keys() if col in df.columns]
-                df = df[available_columns].rename(columns=column_mapping)
-            for col in self.standard_columns:
-                if col not in df.columns:
-                    df[col] = ""
-            df = df[self.standard_columns]
+           out = pd.DataFrame(index=df.index)
+           for name, pos in self.COLUMN_POSITIONS.items():
+               if pos < df.shape[1]:
+                   out[name] = df.iloc[:, pos]
+               else:
+                    out[name] = np.nan
+           return out
+
+    def _clean_rows(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df[-df['order_number'].astype('string').str.startswith('Total#', na=False)]
+        first_col_lower = df['order_number'].astype('string').str.lower().str.strip()
+        df = df[~first_col_lower.isin(self.NOISE_LABELS)]
+        df = df[df['order_number'].notna() & (df['order_number'].astype('string').str.strip() != '')]
+        return df
+
+    def _filter_depot(self, df: pd.DataFrame) -> pd.DataFrame:
+        if not self.depot:
             return df
-        except Exception as e:
-            logger.error(e)
-            return pd.DataFrame()
+        if not df['depot'].notna().any():
+            logger.warning("No depot values found; skipping depot filter")
+            return df
+        mask = df['depot'].astype('string').str.contains(
+                self.depot, case=False, na=False, regex=False
+                )
+        out = df[mask].copy()
+        logger.info("Depot filter '%s': %d -> %d rows", self.depot, len(df), len(out))
+        return out
 
-    def _validate_section(self,table_name: str, df: pd.DataFrame) -> bool:
-        if df.empty:
-            logger.warning(f"Empty DataFrame for table {table_name}")
-            return False
-        if table_name not in self.table_mapping.values():
-            logger.warning(f"Unrecognized table {table_name}")
-            return False
-        available_columns = [col for col in self.required_columns if col in df.columns]
-        if not available_columns:
-            logger.warning(f"No required columns found in {table_name}")
-            return False
-        return True
+    def _apply_null_rule(self, df: pd.DataFrame) -> pd.DataFrame:
+        informative = [c for c in self.standard_columns if df[c].notna().any()]
+        if not informative:
+            return df
+        return df[df[informative].isna().sum(axis=1) <= self.max_nulls].copy()
+    
+    def _coerce_types(self, df: pd.DataFrame) -> pd.DataFrame:
+        df['order_number'] = (df['order_number'].astype('string').str.strip()
+                              .str.replace(r'\.0$', '', regex=True))
+        for col in ('volume', 'ex_ref_price'):
+            df[col] = pd.to_numeric(
+                    df[col].astype('string').str.replace(',', '', regex=False),
+                    errors='coerce'
+                    )
+        df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce', dayfirst=True, format='%d/%m/%Y')
+        for col in ('product', 'brv_number', 'bdc', 'depot'):
+            df[col] = df[col].astype('string').str.strip()
+        return df
 
-
-
+    def _empty(self) -> pd.DataFrame:
+        return pd.DataFrame(columns=self.standard_columns + ['status'])

@@ -83,7 +83,7 @@ class DataFetcher:
                             continue
                         # Parse Excel data
                         try:
-                            df = pd.read_excel(BytesIO(content))
+                            df = await asyncio.to_thread(pd.read_excel, BytesIO(content))
                             if df.empty:
                                 if attempt == self.max_retries - 1:
                                     return None, "Empty DataFrame received"

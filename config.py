@@ -22,9 +22,7 @@ class Config:
     user_id: str = os.getenv("USER_ID", "")
     app_id: str = os.getenv("APP_ID", "")
     timeout: int = 120
-    max_retries: int = 3
-    batch_size: int = 100
-    clear_tables_before_insert: bool = "true"
+    max_retries: int = 3 
     log_level = "INFO"
     depot: str = os.getenv("DEPOT", "")
     date_format = "%Y-%m-%d"
@@ -32,17 +30,5 @@ class Config:
     today = datetime.now()
 
 CONFIG = Config()
-# Table names configuration
-TABLE_NAMES = [
-    'approved', 'bdc_cancel_order', 'bdc_decline', 'brv_checked',
-    'depot_manager', 'good_standing', 'loaded', 'order_released',
-    'ordered', 'ppmc_cancel_order', 'depot_manager_decline', 'marked'
-]
-
-# Standard columns for all tables
-STANDARD_COLUMNS = [
-    'order_date', 'order_number', 'products',
-    'volume', 'ex_ref_price', 'brv_number', 'bdc', 'depot'
-]
 
 
