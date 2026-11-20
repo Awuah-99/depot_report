@@ -14,8 +14,8 @@ logger = setup_logger(__name__)
 
 class DatabaseWriter:
 
-    def __init__(self):
-        self.db_config = {}
+    def __init__(self, db_path="deport_report.db"):
+        self.db_path = db_path
         self.batch_size = CONFIG.batch_size
         self.clear_before_insert = CONFIG.clear_tables_before_insert
 
@@ -36,7 +36,8 @@ class DatabaseWriter:
         );
         """
         try:
-            
+            for table in TABLE_NAMES:
+                
             logger.info("SOOON")
             return True
         except Exception as e:
