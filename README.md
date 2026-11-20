@@ -26,8 +26,10 @@ touch .env
 ```
 
 ### Usage
-# Run the full pipeline (Fetch -> Process -> Generate PDF)
+**Run the full pipeline (Fetch -> Process -> Generate PDF)**
+```bash
 python main.py
+```
 
 ### LICENSE
 Distributed under the MIT License.
