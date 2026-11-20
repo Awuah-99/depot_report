@@ -29,6 +29,6 @@ touch .env
 # Run the full pipeline (Fetch -> Process -> Generate PDF)
 python main.py
 
-### LICENCE
+### LICENSE
 Distributed under the MIT License.
 
