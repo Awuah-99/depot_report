@@ -9,18 +9,18 @@ This tool is limited to **order status report only**.
 ### INSTALLATION
 For command-line:
 Make use your have python3 and git on your machine.
-$ git clone https://github.com/Awuah-99/depot_report/
-$ cd depot_report 
-$ pip3 install -r requirements.txt
-$ python3 main.py --help 
+1. $ git clone https://github.com/Awuah-99/depot_report/.
+2. $ cd depot_report.
+3. $ pip3 install -r requirements.txt.
+4. $ python3 main.py --help. 
 
-The --help command provides usage details
+The --help command provides usage details.
 
 ## SETTING UP
-create a .env file
-$ touch .env 
-$ cat envexample > .env
-open .env and fill in your environment secrets
+create a .env file.
+1. $ touch .env. 
+2. $ cat envexample > .env
+3. open .env and fill in your environment secrets.
 eg. if you're stationed at Sentuo Oil Refinery,
 Use DEPOT=Sentuo.
 
