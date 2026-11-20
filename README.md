@@ -1,8 +1,8 @@
 # DEPOT REPORT
 ## ABOUT
 This is a simple tool that helps Bulk Oil Distribution Companies and
-Oil Marketing Companies field representative and other stakeholders who
-do not have access to depot specific report track depot loading activities.
+Oil Marketing Companies field representatives and other stakeholders who
+do not have access to depot specific report to track depot loading activities.
 
 This tool is limited to **order status report only**.  
 
