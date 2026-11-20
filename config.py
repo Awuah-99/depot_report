@@ -26,20 +26,23 @@ class Config:
     batch_size: int = 100
     clear_tables_before_insert: bool = "true"
     log_level = "INFO"
+    depot: str = os.getenv("DEPOT", "")
     date_format = "%Y-%m-%d"
     yesterday = datetime.now() - timedelta(days=1)
     today = datetime.now()
 
 CONFIG = Config()
-
-# Table names
+# Table names configuration
 TABLE_NAMES = [
-        'approved', 'bdc_cancel_order', 'bdc_decline', 'brv_checked',
+    'approved', 'bdc_cancel_order', 'bdc_decline', 'brv_checked',
     'depot_manager', 'good_standing', 'loaded', 'order_released',
     'ordered', 'ppmc_cancel_order', 'depot_manager_decline', 'marked'
-        ]
+]
 
+# Standard columns for all tables
 STANDARD_COLUMNS = [
-        'order_date', 'order_number', 'products',
+    'order_date', 'order_number', 'products',
     'volume', 'ex_ref_price', 'brv_number', 'bdc', 'depot'
-        ]
+]
+
+

@@ -34,6 +34,7 @@ class DataProcessor:
             'MARKED': 'marked'
                 }
         self.required_columns = ['order_date', 'order_number']
+        self.depot = CONFIG.depot
 
     def process(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         """
@@ -45,10 +46,9 @@ class DataProcessor:
             for table_name, section_df in table_data.items():
                 standardized_df = self._standardize_section_columns(section_df)
                 if standardized_df.empty:
-                    logger.warning(f"Section {table_name} became empty after standardization")
                     continue
                 if not standardized_df.empty and 'depot' in standardized_df.columns:
-                    mask = standardized_df['depot'].astype(str).str.contains('BOST.*KUMASI', case=False, na=False, regex=True)
+                    mask = standardized_df['depot'].astype(str).str.contains(f'{self.depot}', case=False, na=False, regex=True)
                     filtered_df = standardized_df[mask].copy()
                     filtered_df = filtered_df.dropna(how='all')
                     # drop rows with more than two empty cells
@@ -56,7 +56,7 @@ class DataProcessor:
                 else:
                     filtered_df = standardized_df
                 if filtered_df.empty:
-                    logger.warning(f"Section {table_name} become empty after filtering")
+                    logger.info(f"{table_name} become empty after filtering")
                     continue
 
                 if self._validate_section(table_name, filtered_df):
