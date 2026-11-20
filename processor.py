@@ -63,12 +63,10 @@ class DataProcessor:
                     validated_data[table_name] = filtered_df
                 else:
                    logger.warning(f"Skipping invalid section: {table_name}")
-                for name, data in validated_data.items():
-                    data.to_csv("report.csv")
             return validated_data
         except Exception as e:
-             logger.error(f"Error processing data: str{e}")
-             logger.error(traceback.format_exc())
+            logger.error(f"Error processing data: str{e}")
+            logger.error(traceback.format_exc())
 
     def find_section_boundaries(self, df: pd.DataFrame) -> Dict[str, Tuple[int, int]]:
         boundaries = {}

@@ -5,6 +5,7 @@ import traceback
 from typing import Dict, List, Optional
 
 import pandas as pd
+import sqlite3
 
 from config import CONFIG, TABLE_NAMES, STANDARD_COLUMNS
 from app_logger import setup_logger
@@ -35,6 +36,7 @@ class DatabaseWriter:
         );
         """
         try:
+            
             logger.info("SOOON")
             return True
         except Exception as e:

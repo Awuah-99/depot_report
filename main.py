@@ -35,7 +35,6 @@ class DataPipeline:
        self.processor = DataProcessor()
        self.writer = DatabaseWriter()
        self.pdf_generator = PDFReportGenerator()
-       self.table_name: Dict[str, pd.DataFrame] = {}
 
     async def run(self)-> bool:
         """
