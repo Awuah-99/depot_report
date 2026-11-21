@@ -1,12 +1,14 @@
-#!/usr/bin/env python3
 """
 pdf_report.py: Generates PDF reports using Matplotlib.
 """
 from datetime import datetime
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
+
+from config import CONFIG
 from app_logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -42,31 +44,28 @@ def classify_product(product: str) -> str:
     value = str(product).upper().strip()
     if not value or value in ('NAN', 'NONE', ''):
         return 'Other'
-    if 'PMS' in value or 'PREMIUM MOTOR SPIRIT' in value or 'PETROL' in value:
-        return 'PMS'
-    if 'AGO' in value or 'AUTOMOTIVE GAS OIL' in value or 'DIESEL' in value:
-        return 'AGO'
+    if 'PMS' in value: return 'PMS'
+    if 'AGO' in value: return 'AGO'
     return 'Other'
 
-def default_pdf_path(depot_name: str = "depot") -> str:
-    reports_dir = Path('reports')
-    reports_dir.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return str(reports_dir / f'{depot_name}_report_{timestamp}.pdf')
 
 
 class PDFReportGenerator:
-    def generate(self, df: pd.DataFrame, output_path: str) -> bool:
+    def __init__(self):
+        self.depot = CONFIG.depo
+        self.timestamp = CONFIG.timestamp
+
+    def default_pdf_path(self) -> str:
+        reports_dir = Path('reports')
+        reports_dir.mkdir(exist_ok=True)
+        return str(reports_dir / f'{self.depot}_report_{self.timestamp}.pdf')
+
+    def generate(self, df: pd.DataFrame) -> bool:
         if df is None or df.empty:
             logger.warning("No data available for PDF report")
             return False
 
-        if 'product' not in df.columns and 'products' in df.columns:
-            df = df.rename(columns={'products': 'product'})
-
-        output = Path(output_path)
-        output.parent.mkdir(parents=True, exist_ok=True)
-
+        output = self.default_pdf_path()
         try:
             with PdfPages(str(output)) as pdf:
                 self._write_summary_page(pdf, df)
@@ -96,8 +95,7 @@ class PDFReportGenerator:
                 product_counts[category] += 1
                 
         total_orders = len(df)
-        generated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+        generated_at = self.timestamp 
         fig = plt.figure(figsize=(11, 8.5))
         fig.suptitle('DAILY ORDER REPORT', fontsize=16, fontweight='bold', y=0.97)
         fig.text(0.5, 0.92, f'Generated: {generated_at}', ha='center', fontsize=10)
@@ -133,11 +131,12 @@ class PDFReportGenerator:
             'Status Breakdown:',
         ]
         
-        # Add status counts in logical order
+        # Add status counts
         status_counts = df['status'].value_counts()
         for status in STATUS_ORDER:
             if status in status_counts.index:
-                display_name = STATUS_DISPLAY_NAMES.get(status, status.replace('_', ' ').title())
+                #-------------------------------------------------------------
+                display_name = STATUS_DISPLAY_NAMES[status]
                 summary_lines.append(f'  {display_name}: {status_counts[status]}')
 
         ax_summary.text(0, 1, '\n'.join(summary_lines), va='top', fontsize=10, family='monospace')
@@ -158,26 +157,13 @@ class PDFReportGenerator:
 
     def _write_table_pages(self, pdf: PdfPages, status: str, df: pd.DataFrame) -> None:
         """Write one or more pages for a status section."""
-        display_name = STATUS_DISPLAY_NAMES.get(status, status.replace('_', ' ').title())
+        display_name = STATUS_DISPLAY_NAMES[status]
         
         # Select only display columns that exist
         cols_to_show = [c for c in DISPLAY_COLUMNS if c in df.columns]
         display_df = df[cols_to_show].copy()
         
-        # Format numeric and date columns for readability
-        if 'volume' in display_df.columns:
-            display_df['volume'] = pd.to_numeric(display_df['volume'], errors='coerce').apply(
-                lambda x: f"{x:,.2f}" if pd.notna(x) else ""
-            )
-        if 'ex_ref_price' in display_df.columns:
-            display_df['ex_ref_price'] = pd.to_numeric(display_df['ex_ref_price'], errors='coerce').apply(
-                lambda x: f"{x:.2f}" if pd.notna(x) else ""
-            )
-        if 'order_date' in display_df.columns:
-            display_df['order_date'] = pd.to_datetime(display_df['order_date'], errors='coerce').apply(
-                lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else ""
-            )
-            
+                   
         # Fill NaNs with empty string for table rendering
         display_df = display_df.fillna('').astype(str)
 

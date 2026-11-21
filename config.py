@@ -28,6 +28,7 @@ class Config:
     date_format = "%Y-%m-%d"
     yesterday = datetime.now() - timedelta(days=1)
     today = datetime.now()
+    timestamp = today.strftime(date_format)
 
 CONFIG = Config()
 

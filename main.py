@@ -20,7 +20,7 @@ from app_logger import setup_logger
 from fetcher import DataFetcher
 from processor import DataProcessor
 
-from pdf_report import PDFReportGenerator, default_pdf_path 
+from pdf_report import PDFReportGenerator 
 
 logger = setup_logger(__name__, CONFIG.log_level)
 
@@ -39,10 +39,8 @@ class DataPipeline:
 
             self.unified_data = self.processor.process(df)
             if self.unified_data.empty: return False
-
-            output_path = default_pdf_path(CONFIG.depot)
-
-            success = self.pdf_generator.generate(self.unified_data, output_path)
+ 
+            success = self.pdf_generator.generate(self.unified_data)
             if success: return success
         except Exception as e:
             logger.error(f"PDF generation failed: {e}")
