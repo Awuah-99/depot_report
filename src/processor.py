@@ -8,8 +8,8 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import numpy as np
 
-from config import CONFIG
-from app_logger import setup_logger
+from .config import CONFIG
+from .app_logger import setup_logger
 
 logger = setup_logger(__name__)
 

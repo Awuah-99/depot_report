@@ -14,13 +14,13 @@ from typing import Dict, Optional
 import asyncio
 import pandas as pd
 
-# custom include files
-from config import CONFIG
-from app_logger import setup_logger
-from fetcher import DataFetcher
-from processor import DataProcessor
 
-from pdf_report import PDFReportGenerator 
+from src.config import CONFIG
+from src.app_logger import setup_logger
+from src.fetcher import DataFetcher
+from src.processor import DataProcessor
+from src.snapshot import save_export, find_file
+from src.pdf_report import PDFReportGenerator 
 
 logger = setup_logger(__name__, CONFIG.log_level)
 
@@ -37,11 +37,15 @@ class DataPipeline:
             df, error_msg = await self.fetcher.fetch_data()
             if df is None: return False
 
+            if not find_file():
+                path = save_export(df)
+                logger.info(f"Snapshot saved: {path}")
+
             self.unified_data = self.processor.process(df)
             if self.unified_data.empty: return False
  
             success = self.pdf_generator.generate(self.unified_data)
-            if success: return success
+            return success
         except Exception as e:
             logger.error(f"PDF generation failed: {e}")
             return False
@@ -56,6 +60,7 @@ def main():
     if not success:
         logger.error("Pipeline execution failed")
         sys.exit(1)
+    logger.info("Pipeline completed sucessfully")
     sys.exit(0)
 
 if __name__ == "__main__":

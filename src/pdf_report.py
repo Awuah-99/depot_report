@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
-from config import CONFIG
-from app_logger import setup_logger
+from .config import CONFIG
+from .app_logger import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -52,7 +52,7 @@ def classify_product(product: str) -> str:
 
 class PDFReportGenerator:
     def __init__(self):
-        self.depot = CONFIG.depo
+        self.depot = CONFIG.depot
         self.timestamp = CONFIG.timestamp
 
     def default_pdf_path(self) -> str:
