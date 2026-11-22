@@ -91,6 +91,8 @@ class DataFetcher:
 
                             response_time = (datetime.now() - start_time).total_seconds()
                             logger.info(f"Successfully fetched {len(df)} rows in {response_time:.2f}s")
+                            #----- remove later(local Test) replace with file verification logic--
+                            save_real_export(df)
                             return df, None
 
                         except Exception as e:
